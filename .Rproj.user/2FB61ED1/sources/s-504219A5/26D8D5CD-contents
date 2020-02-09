@@ -1,0 +1,158 @@
+---
+title: 'Practical Machine Learning : Predicting Exercise Movement'
+author: "Siti Salwani Yaacob"
+date: "2/10/2020"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Background
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: <http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har> (see the section on the Weight Lifting Exercise Dataset).
+
+## Data
+
+The training data for this project are available here:
+
+<https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv>
+
+The test data are available here:
+
+<https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv>
+
+The data for this project come from this source: <http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har>. If you use the document you create for this class for any purpose please cite them as they have been very generous in allowing their data to be used for this kind of assignment.
+
+## What You Should Submit
+
+The goal of your project is to predict the manner in which they did the exercise. This is the "classe" variable in the training set. You may use any of the other variables to predict with. You should create a report describing how you built your model, how you used cross validation, what you think the expected out of sample error is, and why you made the choices you did. You will also use your prediction model to predict 20 different test cases.
+
+## Analysis
+### Getting and Cleaning Data
+```{r cache=TRUE}
+library(caret)
+library(randomForest)
+library(rpart)
+library(rpart.plot)
+#knitr::opts_chunk$set(cache=TRUE)
+
+if (!file.exists("pml-training.csv" )){
+        fileUrl = "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+        download.file(fileUrl, destfile="./pml-training.csv", method = "curl")
+}
+
+if (!file.exists("pml-testing.csv" )){
+        fileUrl = "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+        download.file(fileUrl, destfile="./pml-testing.csv", method = "curl")
+}
+
+#Read in the data: 
+training_data <- read.csv("pml-training.csv", header = TRUE, sep = ",", na.strings = c("NA", ""))
+testing_data <- read.csv("pml-testing.csv", header = TRUE, sep = ",", na.strings = c("NA", ""))
+```
+
+Check the data :
+```{r cache=TRUE}
+str(training_data)
+```
+From first view, it seems that there are a lot of variables containing NA's and missing values. Let's remove these from the training data;
+```{r cache=TRUE}
+na_training <- sapply(training_data, function(x) {sum(is.na(x))})
+training_data <- training_data[,which(na_training == 0)]
+
+na_testing <- sapply(testing_data, function(x) {sum(is.na(x))})
+testing_data <- testing_data[, which(na_testing == 0)]
+
+dim(training_data)
+
+```
+These variables have now been reduced from 160 to 60 in the dataset. Let's check which variables have near zero variance and remove them from the data:
+
+```{r}
+nzv <- nearZeroVar(training_data, saveMetrics = TRUE)
+training_data <- training_data[,nzv$nzv == "FALSE"]
+training_data$classe <- as.factor(training_data$classe)
+
+nzv <- nearZeroVar(testing_data, saveMetrics = TRUE)
+testing_data <- testing_data[, nzv$nzv == "FALSE"]
+
+
+dim(training_data)
+
+```
+Finally remove the first 6 variables, as they have nothing to do with making the predictions:
+```{r cache=TRUE}
+training_data <- training_data[,-c(1:6)]
+testing_data <- testing_data[, -c(1:6)]
+dim(training_data)
+```
+
+### Cross Validation
+
+Cross validation will be performed by subsampling our training data set randomly without replacement into 2 sub-samples: 70% of the data will be used for training the model and 30% for checking the prediction performance of the mode.
+```{r cache=TRUE}
+set.seed(12345)
+inTrain <- createDataPartition(training_data$classe, p = 0.7, list = FALSE)
+training <- training_data[inTrain,]
+testing <- training_data[-inTrain,]
+```
+
+### Prediction Model 1 : Random Forest
+
+The method used for building the model will be Random Forest. The reason for this is that Random Forest is very accurate among other algorithms and it runs very efficiently on large data sets. We will run the set on 5-fold cross validation. In 5-fold cross-validation, the original sample is randomly partitioned into 5 equal sized subsamples. Of the 5 subsamples, a single subsample is retained as the validation data for testing the model, and the remaining 4 subsamples are used as training data. The cross-validation process is then repeated 5 times (the folds), with each of the 5 subsamples used exactly once as the validation data. The 5 results from the folds can then be averaged (or otherwise combined) to produce a single estimation.
+
+```{r cache=TRUE}
+set.seed(12345)
+random_forest <- train(classe ~., method = "rf", data = training, 
+                 trControl = trainControl(method = "cv", number = 5), 
+                 prox = TRUE, allowParallel = TRUE)
+
+random_forest
+```
+The model will be tested on the validation data (partition of the training data) and a confusion matrix will be used to check the accuracy of the prediction on the validation data:
+```{r cache=TRUE}
+predictTesting <- predict(random_forest, testing)
+confusionMatrix(testing$classe, predictTesting)
+
+```
+
+The accuracy from the prediction model is 98.90% and the out of sample error is 1.10%. As this is a very accurate result, we will run the Random Forest model on the test data.
+
+### Prediction Model 2 : Random Forest
+
+The Random Forest model is now applied to the test data to predict the outcome
+
+```{r cache=TRUE}
+answer <- predict(random_forest, testing_data)
+
+answer
+```
+
+
+### Discussion
+
+In this analysis, 19622 observations from weight lifting exercises were used to analyse and predict correct body movement from others during the exercise. 70% of the total observations (13737 observations) were used to build a model by using Random Forest Model. The rest 30% of the observations (5885 observations) were used for Cross Validation. The statistic shows that the built model had the overall accuracy of 98% for the testing set, which is not overlapping with observations used to built the model. The sensitivity was in between 92% - 99% and the specificity was over 98% for all classes ( class A - class E, total 5 classes. Class A is a data from a correct exercise while the other classes were data from exercises done in a wrong way ). Overall, the model is well developed to predict the exercise classes during weight lifting. As for the limitation in this analysis, the observation data used in the analysis was collected from 6 young health participants in an experiment using Microsoft Kinetic. Therefore, under those condition, the model is expected to perform over 95% accuracy. However with different conditions, such as experiment with elderly people and  or using different devices, the model might not perform well as shown in the analysis.
+
+Credit : Michiko % P. Ohlson
+
+
+### Appendix
+
+1. Random Forest Decision Tree
+
+```{r cache=TRUE, fig.width=11, fig.height=6}
+random_forest_tree <- rpart(classe ~., data = training, method = "class")
+prp(random_forest_tree)
+
+```
+
+2. Top 20 Variables Impact on Outcome
+
+```{r cache=TRUE, fig.width=11, fig.height=6}
+plot(varImp(random_forest), top = 20)
+```
+

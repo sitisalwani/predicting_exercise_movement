@@ -1,0 +1,8 @@
+"0","trainingData <- trainingData[,-c(1:6)]"
+"0","testingData <- testingData[, -c(1:6)]"
+"0","dim(trainingData)"
+"1","[1]"
+"1"," 19622"
+"1","    53"
+"1","
+"

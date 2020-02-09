@@ -1,0 +1,2 @@
+"0","rfModelTree <- rpart(classe ~., data = training, method = ""class"")"
+"0","prp(rfModelTree)"

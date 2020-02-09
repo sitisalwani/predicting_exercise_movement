@@ -1,0 +1,4 @@
+"0","NA_Training <- sapply(training_data, function(x) {sum(is.na(x))})"
+"0","training_data <- training_data[,which(NA_Training == 0)]"
+"0","NA_Testing <- sapply(testing_data, function(x) {sum(is.na(x))})"
+"0","testing_Data <- testing_data[, which(NA_Testing == 0)]"
